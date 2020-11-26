@@ -465,16 +465,20 @@ kubectl expose deployment/java-deploy --type="NodePort" --port=8080 -n lijun
 
 官方教程地址：https://kubernetes.io/zh/docs/concepts/configuration/secret/
 
+辅助学习地址：https://feisky.gitbooks.io/kubernetes/content/concepts/secret.html
+
 例如，要使用 `data` 字段将两个字符串存储在 Secret 中，请按如下所示将它们转换为 base64：
 
 ```shell
-echo -n 'admin' | base64
+echo -n 'root' | base64  
+cm9vdAo=
 ```
 
 解码 `password` 字段：
 
 ```shell
-echo 'MWYyZDFlMmU2N2Rm' | base64 --decode
+echo '123456' | base64 --decode
+MTIzNDU2Cg==
 ```
 
 输出类似于：
@@ -502,19 +506,31 @@ data:
 kubectl apply -f ./secret.yaml
 ```
 
+```
+- name: MYSQL_ROOT_PASSWORD
+    value: "123456"
+```
+
+
+
 #### 创建ConfigMaps对象
 
 官方地址：https://kubernetes.io/zh/docs/concepts/configuration/configmap/
+
+挂载文件：https://blog.csdn.net/weixin_34102807/article/details/85965725
 
 #### Ingress使用
 
 官方地址：https://kubernetes.io/zh/docs/concepts/services-networking/ingress/
 
+#### pv ,pvc 的使用
+
+https://developer.aliyun.com/article/754434
+
 #### 1、更新 deployment中的镜像
 
 ```shell
 kubectl set image deployment/nginx-deployment nginx=nginx:1.16.1 --record
-
 
 #或者
 kubectl --record deployment.apps/nginx-deployment set image \
@@ -838,3 +854,4 @@ nginx-deployment-618515232    11        11        11        7m
 
 > **说明：** 你不可以回滚处于暂停状态的 Deployment，除非先恢复其执行状态。
 
+  
