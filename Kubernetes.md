@@ -465,6 +465,27 @@ kubectl expose deployment/java-deploy --type="NodePort" --port=8080 -n lijun
 
 官方教程地址：https://kubernetes.io/zh/docs/concepts/configuration/secret/
 
+使用yaml创建
+
+```yaml
+apiVersion: v1
+data:
+  password: MTIzNDU2
+  username: cm9vdA==
+kind: Secret
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"password":"MTIzNDU2Cg==","username":"cm9vdAo="},"kind":"Secret","metadata":{"annotations":{},"name":"mysql-secret","namespace":"lijun"},"type":"Opaque"}
+  creationTimestamp: "2020-11-25T01:25:31Z"
+  name: mysql-secret
+  namespace: lijun
+  resourceVersion: "1261700"
+  selfLink: /api/v1/namespaces/lijun/secrets/mysql-secret
+  uid: 1b9ec15d-2ebd-11eb-a2f4-0050568ead99
+type: Opaque
+```
+
 辅助学习地址：https://feisky.gitbooks.io/kubernetes/content/concepts/secret.html
 
 例如，要使用 `data` 字段将两个字符串存储在 Secret 中，请按如下所示将它们转换为 base64：
@@ -506,9 +527,14 @@ data:
 kubectl apply -f ./secret.yaml
 ```
 
-```
-- name: MYSQL_ROOT_PASSWORD
-    value: "123456"
+pod引用secret的方法
+
+```yaml
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: mysql-secret
 ```
 
 
@@ -519,6 +545,82 @@ kubectl apply -f ./secret.yaml
 
 挂载文件：https://blog.csdn.net/weixin_34102807/article/details/85965725
 
+使用命令行，使用文件生成configmap
+
+```yaml
+kubectl --namspace lijun create configmap file-configmap --file-from=文件地址 
+```
+
+```yaml
+apiVersion: v1
+data:
+  application.yaml: "server:\r\n  port: 8080\r\nspring:\r\n  datasource:\r\n    type:
+    com.alibaba.druid.pool.DruidDataSource\r\n    driver-class-name: com.mysql.jdbc.Driver\r\n
+    \   #url: jdbc:mysql://172.17.0.2:3306/article?characterEncoding=utf8&autoReconnect=true&useSSL=false\r\n
+    \   url: jdbc:mysql://mysql-deploy:3306/k8s-test?characterEncoding=utf8&autoReconnect=true&useSSL=false\r\n
+    \   username: root\r\n    password: 123456\r\nmybatis:\r\n  type-aliases-package:
+    com.entity\r\n  mapper-locations: classpath:mapper/*.xml\r\nlogging:\r\n  level:\r\n
+    \   root: info            #日志的级别\r\n    com.ghostcloud.dao: debug    #开启sql日志\r\n"
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2020-11-25T10:23:20Z"
+  name: app-configmap
+  namespace: lijun
+  resourceVersion: "1485491"
+  selfLink: /api/v1/namespaces/lijun/configmaps/app-configmap
+  uid: 3d6adc3c-2f08-11eb-a2f4-0050568ead99
+
+```
+
+容器使用configmap中的配置文件
+
+```yaml
+        volumeMounts:
+        - mountPath: /application.yaml    #挂载到容器内部的地址
+          name: configmap-volume
+          subPath: application.yaml   #指定使用文件的子目录
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:        #pod使用volumes 挂载configmap
+      - configMap:
+          defaultMode: 420
+          name: app-configmap
+        name: configmap-volume
+```
+
+configmap作为环境变量使用
+
+创建configmap
+
+```yaml
+apiVersion: v1
+data:
+  password: "12345678"
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2020-11-27T01:24:26Z"
+  name: mysql-v2
+  namespace: lijun
+  resourceVersion: "1711209"
+  selfLink: /api/v1/namespaces/lijun/configmaps/mysql-v2
+  uid: 49995097-304f-11eb-a2f4-0050568ead99
+```
+
+pod的使用configmap作为环境变量
+
+```yaml
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              key: password
+              name: mysql-v2
+```
+
+
+
 #### Ingress使用
 
 官方地址：https://kubernetes.io/zh/docs/concepts/services-networking/ingress/
@@ -526,6 +628,52 @@ kubectl apply -f ./secret.yaml
 #### pv ,pvc 的使用
 
 https://developer.aliyun.com/article/754434
+
+MySQL挂载pvc
+
+```yaml
+        volumeMounts:
+        - mountPath: /var/lib/mysql  #挂载到容器中的路径
+          name: mysql-v
+
+      volumes:
+      - name: mysql-v
+        persistentVolumeClaim:		#使用pvc
+          claimName: mysql-v2
+```
+
+pvc 的yaml配置
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: ghostcloud.cn/nfs
+  creationTimestamp: "2020-11-27T02:11:28Z"
+  finalizers:
+  - kubernetes.io/pvc-protection
+  name: mysql-v2
+  namespace: lijun
+  resourceVersion: "1665705"
+  selfLink: /api/v1/namespaces/lijun/persistentvolumeclaims/mysql-v2
+  uid: dbd67285-3055-11eb-a2f4-0050568ead99
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi		#使用资源大小
+  storageClassName: nfs #使用sc自动创建pv，如果pv没有找到，就静态匹配自己手动建立的pv
+  volumeMode: Filesystem
+  volumeName: pvc-dbd67285-3055-11eb-a2f4-0050568ead99
+status:
+  accessModes:
+```
+
+
 
 #### 1、更新 deployment中的镜像
 
